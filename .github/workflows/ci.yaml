@@ -83,9 +83,9 @@ jobs:
       - name: Build for multiple platforms
         run: |
           mkdir -p bin
-          GOOS=linux GOARCH=amd64 go build -o bin/studentapi-linux-amd64 ./cmd/studentapi
-          GOOS=windows GOARCH=amd64 go build -o bin/studentapi-windows-amd64.exe ./cmd/studentapi
-          GOOS=darwin GOARCH=amd64 go build -o bin/studentapi-darwin-amd64 ./cmd/studentapi
+          GOOS=linux GOARCH=amd64 go build -o bin/linux-amd64 ./
+          GOOS=windows GOARCH=amd64 go build -o bin/windows-amd64.exe ./
+          GOOS=darwin GOARCH=amd64 go build -o bin/darwin-amd64 ./
 
       - name: Upload build artifacts
         uses: actions/upload-artifact@v4
