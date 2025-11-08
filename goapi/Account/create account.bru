@@ -1,0 +1,23 @@
+meta {
+  name: create account
+  type: http
+  seq: 1
+}
+
+post {
+  url: http://localhost:8000/account
+  body: json
+  auth: inherit
+}
+
+body:json {
+  {
+    "first_name": "Holla",
+    "last_name": "Bolla"
+  }
+}
+
+settings {
+  encodeUrl: true
+  timeout: 0
+}
