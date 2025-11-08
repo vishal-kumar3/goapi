@@ -1,0 +1,20 @@
+meta {
+  name: Delete user account
+  type: http
+  seq: 2
+}
+
+delete {
+  url: http://localhost:8000/account/:id
+  body: none
+  auth: inherit
+}
+
+params:path {
+  id: 3
+}
+
+settings {
+  encodeUrl: true
+  timeout: 0
+}

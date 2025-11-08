@@ -1,0 +1,15 @@
+meta {
+  name: Get all accounts
+  type: http
+  seq: 2
+}
+
+get {
+  url: http://localhost:8000/account
+  body: none
+  auth: inherit
+}
+
+settings {
+  encodeUrl: true
+}

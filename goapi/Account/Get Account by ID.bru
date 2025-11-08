@@ -1,0 +1,24 @@
+meta {
+  name: Get Account by ID
+  type: http
+  seq: 3
+}
+
+get {
+  url: http://localhost:8000/account/:id
+  body: none
+  auth: inherit
+}
+
+params:path {
+  id: 6
+}
+
+headers {
+  Authorization: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJhY2NvdW50TnVtYmVyIjoxMTExMzQ4LCJleHBpcmVzQXQiOjE1MDAwLCJ1c2VySUQiOjZ9.O--7GuiR7cUAL_Hf8w3vj8JfFhRPLdzbgX3-3NJh3kc
+}
+
+settings {
+  encodeUrl: true
+  timeout: 0
+}
