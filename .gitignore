@@ -1,0 +1,28 @@
+
+
+bin/
+
+   # Vendor directory
+vendor/
+
+   # Environment files
+*.env
+
+   # Editor swap files
+*.swp
+*.swo
+
+   # Neovim undo and backup files
+*.un~
+*.bak
+
+   # Dependency directories (optional if using Go modules)
+Godeps/
+
+   # Output of `go build` and `go test`
+*.out
+*.test
+
+   # Logs
+*.log
+
