@@ -1,0 +1,16 @@
+meta {
+  name: Transfer balance
+  type: http
+  seq: 1
+}
+
+get {
+  url: http://localhost:8000/transfer
+  body: none
+  auth: inherit
+}
+
+settings {
+  encodeUrl: true
+  timeout: 0
+}

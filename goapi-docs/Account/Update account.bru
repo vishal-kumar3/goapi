@@ -1,0 +1,27 @@
+meta {
+  name: Update account
+  type: http
+  seq: 3
+}
+
+patch {
+  url: http://localhost:8000/account/:id
+  body: json
+  auth: inherit
+}
+
+params:path {
+  id: 8
+}
+
+body:json {
+  {
+    "first_name": "New",
+    "last_name": "Data"
+  }
+}
+
+settings {
+  encodeUrl: true
+  timeout: 0
+}
