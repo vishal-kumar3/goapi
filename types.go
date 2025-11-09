@@ -1,9 +1,13 @@
 package main
 
 import (
-	"math/rand"
 	"time"
 )
+
+type LoginRequest struct {
+	Number   int64  `json:"account_number"`
+	Password string `json:"password"`
+}
 
 type TransferRequest struct {
 	ToAccount int     `json:"to_account"`
@@ -11,25 +15,26 @@ type TransferRequest struct {
 }
 
 type CreateAccountRequest struct {
-	FirstName string `json:"first_name"`
-	LastName  string `json:"last_name"`
+	FirstName string `json:"first_name" validate:"required"`
+	LastName  string `json:"last_name" validate:"required"`
+	Password  string `json:"password" validate:"required"`
 }
 
 type Account struct {
 	ID        int       `json:"id"`
 	FirstName string    `json:"first_name"`
 	LastName  string    `json:"last_name"`
+	Password  string    `json:"-"`
 	Number    int64     `json:"account_number"`
-	Balance   int64     `json:"account_balance"`
+	Balance   float64   `json:"account_balance"`
 	CreatedAt time.Time `json:"created_at"`
 }
 
-func NewAccount(firstName, lastName string) *Account {
+func NewAccount(firstName, lastName string, password *string) *Account {
 	return &Account{
-		ID:        rand.Intn(1000),
 		FirstName: firstName,
 		LastName:  lastName,
-		Number:    int64(rand.Intn(10000000)),
+		Password:  *password,
 		CreatedAt: time.Now().UTC(),
 	}
 }

@@ -7,12 +7,14 @@ import (
 	"strings"
 
 	_ "github.com/lib/pq"
+	"golang.org/x/crypto/bcrypt"
 )
 
 type Storage interface {
-	CreateAccount(*Account) error
+	CreateAccount(*Account) (int, error)
 	UpdateAccount(*Account) error
 	DeleteAccount(int) error
+	GetAccountByNumber(int) (*Account, error)
 	GetAccountByID(int) (*Account, error)
 	GetAllAccount() ([]*Account, error)
 }
@@ -46,8 +48,9 @@ func (s *PostgresStorage) createAccountTable() error {
 	  id serial primary key,
 	  first_name varchar(50),
 	  last_name varchar(50),
-	  account_number serial,
-	  account_balance serial,
+		password varchar(100) not null,
+	  account_number serial UNIQUE,
+	  account_balance numeric(20,2),
 	  created_at timestamp
 	)`
 
@@ -55,22 +58,33 @@ func (s *PostgresStorage) createAccountTable() error {
 	return err
 }
 
-func (s *PostgresStorage) CreateAccount(acc *Account) error {
+func (s *PostgresStorage) CreateAccount(acc *Account) (int, error) {
 	query := `
-	INSERT INTO ACCOUNT 
-	(first_name, last_name, account_number, account_balance, created_at)
+	INSERT INTO ACCOUNT
+	(first_name, last_name, password, account_balance, created_at)
 	VALUES ($1, $2, $3, $4, $5)
+	RETURNING id
 	`
 
-	_, err := s.db.Exec(
+	hashedPassword, bcryptErr := bcrypt.GenerateFromPassword([]byte(acc.Password), bcrypt.DefaultCost)
+	if bcryptErr != nil {
+		return 0, fmt.Errorf("error hashing password")
+	}
+
+	acc.Password = string(hashedPassword)
+
+	var id int
+
+	err := s.db.QueryRow(
 		query,
 		acc.FirstName,
 		acc.LastName,
-		acc.Number,
+		acc.Password,
 		acc.Balance,
 		acc.CreatedAt,
-	)
-	return err
+	).Scan(&id)
+
+	return id, err
 }
 
 func (s *PostgresStorage) UpdateAccount(acc *Account) error {
@@ -135,6 +149,24 @@ func (s *PostgresStorage) GetAccountByID(id int) (*Account, error) {
 	return nil, fmt.Errorf("Account not found")
 }
 
+func (s *PostgresStorage) GetAccountByNumber(number int) (*Account, error) {
+	query := `
+	SELECT * FROM ACCOUNT
+	WHERE account_number = $1
+	`
+
+	row, err := s.db.Query(query, number)
+	if err != nil {
+		return nil, err
+	}
+
+	for row.Next() {
+		return scanIntoAccount(row)
+	}
+
+	return nil, fmt.Errorf("Account not found")
+}
+
 func (s *PostgresStorage) GetAllAccount() ([]*Account, error) {
 	query := `
 	SELECT * FROM ACCOUNT
@@ -163,6 +195,7 @@ func scanIntoAccount(rows *sql.Rows) (*Account, error) {
 		&account.ID,
 		&account.FirstName,
 		&account.LastName,
+		&account.Password,
 		&account.Number,
 		&account.Balance,
 		&account.CreatedAt,
