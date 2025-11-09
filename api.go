@@ -7,8 +7,10 @@ import (
 	"net/http"
 	"strconv"
 
+	"github.com/go-playground/validator/v10"
 	jwt "github.com/golang-jwt/jwt/v5"
 	"github.com/gorilla/mux"
+	"golang.org/x/crypto/bcrypt"
 )
 
 var secret string = "mysecretkey"
@@ -28,12 +30,12 @@ func NewAPIServer(listenAddr string, store Storage) *APIServer {
 func (s *APIServer) Run() {
 	router := mux.NewRouter()
 
+	router.HandleFunc("/login", makeHTTPHanleFunc(s.handleAccountLogin)).Methods("POST")
 	router.HandleFunc("/account", makeHTTPHanleFunc(s.handleAccount))
-	router.HandleFunc("/account/{id:[0-9]+}", withJWTAuth(makeHTTPHanleFunc(s.handleAccountByID)))
-	router.HandleFunc("/login/{id:[0-9]+}", makeHTTPHanleFunc(s.handleAccountLogin))
+	router.HandleFunc("/account/{id:[0-9]+}", withJWTAuth(makeHTTPHanleFunc(s.handleAccountByID), s.store))
 	router.HandleFunc("/transfer", makeHTTPHanleFunc(s.handleTransfer))
 
-	log.Println("JSON API server running on port: ", s.listenAddr)
+	log.Println("JSON API server running on port", s.listenAddr)
 
 	http.ListenAndServe(s.listenAddr, router)
 }
@@ -87,7 +89,7 @@ func (s *APIServer) handleUpdateAccount(w http.ResponseWriter, r *http.Request) 
 		return nil
 	}
 
-	account := NewAccount(updateAccountReq.FirstName, updateAccountReq.LastName)
+	account := NewAccount(updateAccountReq.FirstName, updateAccountReq.LastName, nil)
 	account.ID = id
 
 	storeErr := s.store.UpdateAccount(account)
@@ -105,11 +107,17 @@ func (s *APIServer) handleCreateAccount(w http.ResponseWriter, r *http.Request) 
 	}
 	defer r.Body.Close()
 
-	account := NewAccount(createAccountReq.FirstName, createAccountReq.LastName)
-	err := s.store.CreateAccount(account)
+	validate := validator.New()
+	if err := validate.Struct(createAccountReq); err != nil {
+		return err
+	}
+
+	account := NewAccount(createAccountReq.FirstName, createAccountReq.LastName, &createAccountReq.Password)
+	id, err := s.store.CreateAccount(account)
 	if err != nil {
 		return err
 	}
+	account.ID = id
 
 	token, err := createJWT(account)
 	if err != nil {
@@ -128,15 +136,20 @@ func (s *APIServer) handleCreateAccount(w http.ResponseWriter, r *http.Request) 
 }
 
 func (s *APIServer) handleAccountLogin(w http.ResponseWriter, r *http.Request) error {
-	fmt.Println("Calling login")
-	id, err := getID(r)
-	if err != nil {
+	loginReq := &LoginRequest{}
+	if err := json.NewDecoder(r.Body).Decode(loginReq); err != nil {
 		return err
 	}
 
-	account, accountErr := s.store.GetAccountByID(id)
+	account, accountErr := s.store.GetAccountByNumber(int(loginReq.Number))
 	if accountErr != nil {
 		return accountErr
+	}
+
+	brcyptErr := bcrypt.CompareHashAndPassword([]byte(account.Password), []byte(loginReq.Password))
+
+	if brcyptErr != nil {
+		return fmt.Errorf("invalid login credentials")
 	}
 
 	token, tokenErr := createJWT(account)
@@ -189,13 +202,27 @@ func (s *APIServer) handleGetAllAccount(w http.ResponseWriter, r *http.Request) 
 	return WriteJSON(w, http.StatusOK, accouts)
 }
 
-func withJWTAuth(handlerFunc http.HandlerFunc) http.HandlerFunc {
+func withJWTAuth(handlerFunc http.HandlerFunc, s Storage) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		fmt.Println("Called JWT Auth...")
 
 		tokenStr := r.Header.Get("authorization")
-		_, err := validateJWT(tokenStr)
+		decodedToken, err := validateJWT(tokenStr)
 		if err != nil {
+			WriteJSON(w, http.StatusUnauthorized, APIError{Error: "User not authorized"})
+			return
+		}
+
+		if !decodedToken.Valid {
+			WriteJSON(w, http.StatusUnauthorized, APIError{Error: "User not authorized"})
+			return
+		}
+
+		claims := decodedToken.Claims.(jwt.MapClaims)
+		userID := int(claims["userID"].(float64))
+
+		account, err := s.GetAccountByID(userID)
+		if err != nil || account == nil {
 			WriteJSON(w, http.StatusUnauthorized, APIError{Error: "User not authorized"})
 			return
 		}
@@ -234,6 +261,29 @@ func WriteJSON(w http.ResponseWriter, status int, v any) error {
 	w.WriteHeader(status)
 
 	return json.NewEncoder(w).Encode(v)
+}
+
+func formatValidationErrors(err error) map[string]string {
+	errors := make(map[string]string)
+
+	for _, e := range err.(validator.ValidationErrors) {
+		var msg string
+
+		switch e.Tag() {
+		case "required":
+			msg = fmt.Sprintf("%s is required", e.Field())
+		case "alpha":
+			msg = fmt.Sprintf("%s must contain only letters", e.Field())
+		case "strongpwd":
+			msg = "Password must be at least 8 characters long and include an uppercase letter, number, and special symbol"
+		default:
+			msg = fmt.Sprintf("%s is invalid", e.Field())
+		}
+
+		errors[e.Field()] = msg
+	}
+
+	return errors
 }
 
 type apiFunc func(http.ResponseWriter, *http.Request) error
