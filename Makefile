@@ -14,7 +14,13 @@ build: prebuild fmt vet
 run: build
 	@./bin/goapi
 
+run-metrics:
+	@docker compose -f ./docker-compose.metrics.yml up
+
+run-db:
+	@docker compose -f ./docker-compose.db.yml up
+
 test:
 	@go test -v ./...
 
-.PHONY: prebuild fmt vet build run test
+.PHONY: prebuild fmt vet build run test run-metrics run-db

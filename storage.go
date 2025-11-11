@@ -24,7 +24,14 @@ type PostgresStorage struct {
 }
 
 func NewPostgresStorage() (*PostgresStorage, error) {
-	connStr := "user=postgres dbname=postgres password=godb sslmode=disable"
+	dbconfig := LoadEnvConfig()
+	connStr := fmt.Sprint(
+		"user=", dbconfig.POSTGRESUSER, " ",
+		"dbname=", dbconfig.POSTGRESDB, " ",
+		"password=", dbconfig.POSTGRESPASSWORD, " ",
+		"sslmode=disable",
+	)
+
 	db, err := sql.Open("postgres", connStr)
 	if err != nil {
 		return nil, err
@@ -33,6 +40,8 @@ func NewPostgresStorage() (*PostgresStorage, error) {
 	if err := db.Ping(); err != nil {
 		return nil, err
 	}
+
+	log.Println("Connected to Postgres database successfully")
 
 	return &PostgresStorage{
 		db: db,

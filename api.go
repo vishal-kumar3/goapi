@@ -6,10 +6,12 @@ import (
 	"log"
 	"net/http"
 	"strconv"
+	"time"
 
 	"github.com/go-playground/validator/v10"
 	jwt "github.com/golang-jwt/jwt/v5"
 	"github.com/gorilla/mux"
+	"github.com/prometheus/client_golang/prometheus/promhttp"
 	"golang.org/x/crypto/bcrypt"
 )
 
@@ -30,9 +32,16 @@ func NewAPIServer(listenAddr string, store Storage) *APIServer {
 func (s *APIServer) Run() {
 	router := mux.NewRouter()
 
-	router.HandleFunc("/login", makeHTTPHanleFunc(s.handleAccountLogin)).Methods("POST")
-	router.HandleFunc("/account", makeHTTPHanleFunc(s.handleAccount))
-	router.HandleFunc("/account/{id:[0-9]+}", withJWTAuth(makeHTTPHanleFunc(s.handleAccountByID), s.store))
+	router.Use(MetricMiddleware)
+
+	router.Handle("/metrics", promhttp.Handler()).Methods("GET").Name("metrics")
+	router.HandleFunc("/health", makeHTTPHanleFunc(handleHealthCheck)).Name("health_check")
+	router.HandleFunc("/login", makeHTTPHanleFunc(s.handleAccountLogin)).Methods("POST").Name("account_login")
+	router.HandleFunc("/account", makeHTTPHanleFunc(s.handleGetAllAccount)).Methods("GET").Name("account_get_all")
+	router.HandleFunc("/account", makeHTTPHanleFunc(s.handleCreateAccount)).Methods("POST").Name("account_create")
+	router.HandleFunc("/account/{id:[0-9]+}", withJWTAuth(makeHTTPHanleFunc(s.handleGetAccountByID), s.store)).Methods("GET").Name("account_get_by_id")
+	router.HandleFunc("/account/{id:[0-9]+}", withJWTAuth(makeHTTPHanleFunc(s.handleDeleteAccount), s.store)).Methods("DELETE").Name("account_delete")
+	router.HandleFunc("/account/{id:[0-9]+}", withJWTAuth(makeHTTPHanleFunc(s.handleUpdateAccount), s.store)).Methods("PATCH").Name("account_update")
 	router.HandleFunc("/transfer", makeHTTPHanleFunc(s.handleTransfer))
 
 	log.Println("JSON API server running on port", s.listenAddr)
@@ -40,29 +49,13 @@ func (s *APIServer) Run() {
 	http.ListenAndServe(s.listenAddr, router)
 }
 
-func (s *APIServer) handleAccountByID(w http.ResponseWriter, r *http.Request) error {
-	if r.Method == "GET" {
-		return s.handleGetAccountByID(w, r)
+func handleHealthCheck(w http.ResponseWriter, r *http.Request) error {
+	healthResponse := struct {
+		Timestamp time.Time `json:"timestamp"`
+	}{
+		Timestamp: time.Now(),
 	}
-	if r.Method == "DELETE" {
-		return s.handleDeleteAccount(w, r)
-	}
-	if r.Method == "PATCH" {
-		return s.handleUpdateAccount(w, r)
-	}
-
-	return fmt.Errorf("method not allowed %s", r.Method)
-}
-
-func (s *APIServer) handleAccount(w http.ResponseWriter, r *http.Request) error {
-	if r.Method == "GET" {
-		return s.handleGetAllAccount(w, r)
-	}
-	if r.Method == "POST" {
-		return s.handleCreateAccount(w, r)
-	}
-
-	return fmt.Errorf("method not allowed %s", r.Method)
+	return WriteJSON(w, http.StatusOK, healthResponse)
 }
 
 func (s *APIServer) handleGetAccountByID(w http.ResponseWriter, r *http.Request) error {
@@ -194,6 +187,8 @@ func (s *APIServer) handleTransfer(w http.ResponseWriter, r *http.Request) error
 }
 
 func (s *APIServer) handleGetAllAccount(w http.ResponseWriter, r *http.Request) error {
+	time.Sleep(2 * time.Second)
+
 	accouts, err := s.store.GetAllAccount()
 	if err != nil {
 		return err
@@ -204,8 +199,6 @@ func (s *APIServer) handleGetAllAccount(w http.ResponseWriter, r *http.Request) 
 
 func withJWTAuth(handlerFunc http.HandlerFunc, s Storage) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		fmt.Println("Called JWT Auth...")
-
 		tokenStr := r.Header.Get("authorization")
 		decodedToken, err := validateJWT(tokenStr)
 		if err != nil {
