@@ -13,6 +13,34 @@ services:
     networks:
       - monitoring
 
+  loki:
+    image: grafana/loki:3.1.1
+    container_name: loki
+    ports:
+      - "3100:3100"
+    restart: unless-stopped
+    command: -config.file=/etc/loki/config.yaml
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    volumes:
+      - ./config/loki.yaml:/etc/loki/config.yaml:ro
+    networks:
+      - monitoring
+
+  promtail:
+    image: grafana/promtail:3.1.1
+    container_name: promtail
+    command: -config.file=/etc/promtail/config.yaml
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    volumes:
+      - ./config/promtail.yaml:/etc/promtail/config.yaml:ro
+      - ./logs:/app/logs:ro
+    depends_on:
+      - loki
+    networks:
+      - monitoring
+
   grafana:
     image: grafana/grafana:latest
     container_name: grafana
@@ -20,17 +48,9 @@ services:
       - "3000:3000"
     depends_on:
       - prometheus
+      - loki
     volumes:
       - grafana_data:/var/lib/grafana
-    restart: unless-stopped
-    networks:
-      - monitoring
-
-  loki:
-    image: grafana/loki:latest
-    container_name: loki
-    ports:
-      - "3100:3100"
     restart: unless-stopped
     networks:
       - monitoring

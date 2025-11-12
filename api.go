@@ -12,6 +12,7 @@ import (
 	jwt "github.com/golang-jwt/jwt/v5"
 	"github.com/gorilla/mux"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
+	"go.uber.org/zap"
 	"golang.org/x/crypto/bcrypt"
 )
 
@@ -44,7 +45,7 @@ func (s *APIServer) Run() {
 	router.HandleFunc("/account/{id:[0-9]+}", withJWTAuth(makeHTTPHanleFunc(s.handleUpdateAccount), s.store)).Methods("PATCH").Name("account_update")
 	router.HandleFunc("/transfer", makeHTTPHanleFunc(s.handleTransfer))
 
-	log.Println("JSON API server running on port", s.listenAddr)
+	Log.Info("JSON API server running on port", zap.String("addr", s.listenAddr))
 
 	http.ListenAndServe(s.listenAddr, router)
 }

@@ -6,6 +6,7 @@ import (
 
 	"github.com/gorilla/mux"
 	"github.com/prometheus/client_golang/prometheus"
+	"go.uber.org/zap"
 )
 
 // <namespace>_<subsystem>_<metric>_<unit>
@@ -38,12 +39,6 @@ var (
 )
 
 func init() {
-	// prometheus.MustRegister(
-	// Go runtime metrics
-	// collectors.NewGoCollector(),
-	// collectors.NewProcessCollector(collectors.ProcessCollectorOpts{}),
-	// )
-
 	prometheus.MustRegister(
 		httpRequestsTotal,
 		httpRequestDuration,
@@ -64,11 +59,22 @@ func MetricMiddleware(next http.Handler) http.Handler {
 		sw := &StatusWriter{ResponseWriter: w, status: http.StatusOK}
 		next.ServeHTTP(sw, r)
 
-		duration := time.Since(start).Seconds()
+		duration := time.Since(start)
 		status := statusClass(sw.status)
 
 		httpRequestsTotal.WithLabelValues(route, r.Method, status).Inc()
-		httpRequestDuration.WithLabelValues(route, r.Method).Observe(duration)
+		httpRequestDuration.WithLabelValues(route, r.Method).Observe(duration.Seconds())
+
+		// Loki logging
+		Log.Info("http_request",
+			zap.String("route", route),
+			zap.String("method", r.Method),
+			zap.Int("status", sw.status),
+			zap.String("status_class", statusClass(sw.status)),
+			zap.Duration("duration", duration),
+			zap.String("remote_ip", r.RemoteAddr),
+			zap.String("user_agent", r.UserAgent()),
+		)
 	})
 }
 
