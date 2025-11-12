@@ -1,17 +1,18 @@
 package main
 
-import (
-	"log"
-)
+import "go.uber.org/zap"
 
 func main() {
+	InitLogger()
+	defer SyncLogger()
+
 	store, err := NewPostgresStorage()
 	if err != nil {
-		log.Fatal("Error while db connection: ", err)
+		Log.Fatal("Error while db connection: ", zap.Error(err))
 	}
 
 	if err := store.Init(); err != nil {
-		log.Fatal("Error while db init: ", err)
+		Log.Fatal("Error while db init: ", zap.Error(err))
 	}
 
 	server := NewAPIServer(":8000", store)
